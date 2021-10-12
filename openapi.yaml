@@ -1,0 +1,563 @@
+openapi: 3.0.1
+info:
+  title: Public Blog
+  description: Place to share your blogs with others and to edit them. All edits must be approved by moderators.
+  contact:
+    email: oleksandr.sentypal.knm.2020@lpnu.ua
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.0
+# servers:
+# - url: https://petstore.swagger.io/v2
+# - url: http://petstore.swagger.io/v2
+tags:
+- name: user
+  description: Operations about user
+- name: blog
+  description: Operations about blog
+- name: limbo
+  description: Operations about edits of existing blogs
+  
+paths:
+
+  /blog:
+    post:
+      tags:
+      - blog
+      summary: Add a new blog to the store
+      description: Can only be done by registered users
+      operationId: addBlog
+      requestBody:
+        description: Blog object that needs to be added to the blogs
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Blog'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Blog'
+        required: true
+      responses:
+        200:
+          description: successful operation
+        405:
+          description: Invalid input
+      security:
+        - blog_auth:
+          - registered
+      
+  /blog/findByTags:
+    get:
+      tags:
+      - blog
+      summary: Finds Blogs by tags
+      description: Muliple tags can be provided with comma separated strings
+      operationId: findBlogsByTags
+      parameters:
+      - name: tags
+        in: query
+        description: Tags to filter by
+        required: true
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Blog'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Blog'
+        400:
+          description: Invalid tag value
+          content: {}
+      security: []
+        
+  /blog/{blogId}:
+    get:
+      tags:
+      - blog
+      summary: Find blog by ID
+      description: Returns a single blog
+      operationId: getBlogById
+      parameters:
+      - name: blogId
+        in: path
+        description: ID of blog to return
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/Blog'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Blog'
+        400:
+          description: Invalid ID supplied
+          content: {}
+        404:
+          description: Blog not found
+          content: {}
+      security: []
+    delete:
+      tags:
+      - blog
+      summary: Deletes a blog
+      operationId: deleteBlog
+      parameters:
+      - name: blogId
+        in: path
+        description: Blog id to delete
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        200:
+          description: Successful operation
+        400:
+          description: Invalid ID supplied
+          content: {}
+        404:
+          description: Blog not found
+          content: {}
+      security:
+      - blog_auth:
+        - admin
+
+
+
+  /user:
+    post:
+      tags:
+      - user
+      summary: Create user
+      description: During registration
+      operationId: createUser
+      requestBody:
+        description: Created user object
+        content:
+          '*/*':
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        default:
+          description: successful operation
+          content: {}
+
+  /user/login:
+    get:
+      tags:
+      - user
+      summary: Logs user into the system
+      operationId: loginUser
+      parameters:
+      - name: username
+        in: query
+        description: The user name for login
+        required: true
+        schema:
+          type: string
+      - name: password
+        in: query
+        description: The password for login in clear text
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          description: successful operation
+          headers:
+            X-Rate-Limit:
+              description: calls per hour allowed by the user
+              schema:
+                type: integer
+                format: int32
+            X-Expires-After:
+              description: date in UTC when token expires
+              schema:
+                type: string
+                format: date-time
+          content:
+            application/xml:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: string
+        400:
+          description: Invalid username/password supplied
+          content: {}
+          
+  /user/logout:
+    get:
+      tags:
+      - user
+      summary: Logs out current logged in user session
+      operationId: logoutUser
+      responses:
+        default:
+          description: successful operation
+          content: {}
+          
+  /user/{username}:
+    get:
+      tags:
+      - user
+      summary: Get user by user name
+      operationId: getUserByName
+      parameters:
+      - name: username
+        in: path
+        description: 'The name that needs to be fetched. Use user1 for testing. '
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/User'
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        400:
+          description: Invalid username supplied
+          content: {}
+        404:
+          description: User not found
+          content: {}
+    put:
+      tags:
+      - user
+      summary: Updated user
+      description: This can only be done by the logged in user.
+      operationId: updateUser
+      parameters:
+      - name: username
+        in: path
+        description: name that need to be updated
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: Updated user object
+        content:
+          '*/*':
+            schema:
+              $ref: '#/components/schemas/User'
+        required: true
+      responses:
+        200:
+          description: Successfully updated user
+          content: {}
+        400:
+          description: Invalid user supplied
+          content: {}
+        404:
+          description: User not found
+          content: {}
+      security:
+        - blog_auth:
+          - registered
+    delete:
+      tags:
+      - user
+      summary: Delete user
+      description: This can only be done by the logged in user.
+      operationId: deleteUser
+      parameters:
+      - name: username
+        in: path
+        description: The name that needs to be deleted
+        required: true
+        schema:
+          type: string
+      responses:
+        200:
+          description: Successfully deleted user
+        400:
+          description: Invalid username supplied
+          content: {}
+        404:
+          description: User not found
+          content: {}
+      security:
+        - blog_auth:
+          - registered
+
+
+  /limbo:
+    get:
+      tags:
+      - limbo
+      summary: Edited blogs
+      description: Get all edited blogs waiting for approval
+      operationId: editedBlogs
+      responses:
+        200:
+          description: successful operation
+          content:
+            application/xml:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EditedBlog'
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EditedBlog'
+        404:
+          description: Edited blogs not found
+          content: {}
+      security:
+        - blog_auth:
+          - moderator
+
+  /limbo/{blogId}:
+    post:
+      tags:
+      - limbo
+      summary: Edited blog
+      description: Add edited blog to the limbo, where it will wait for moderator approval
+      operationId: addEditedBlog
+      parameters:
+      - name: blogId
+        in: path
+        description: ID of blog create this edit
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        description: Blog object that needs to be modified
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Blog'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/Blog'
+        required: true
+      responses:
+        200:
+          description: Operation successful
+        400:
+          description: Invalid ID supplied
+          content: {}
+        404:
+          description: Blog not found
+          content: {}
+        405:
+          description: Validation exception
+          content: {}
+      security:
+      - blog_auth:
+        - registered
+    put:
+      tags:
+      - limbo
+      summary: Approve edit
+      description: Replace old blog with new one after approval from moderation (perhaps also delete other edits of the same blog?)
+      operationId: replaceWithEditedBlog
+      parameters:
+      - name: blogId
+        in: path
+        description: ID of blog to modify
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        description: Blog object that needs to be modified
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EditedBlog'
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/EditedBlog'
+        required: true
+      responses:
+        200:
+          description: Operation successful
+        400:
+          description: Invalid ID supplied
+          content: {}
+        404:
+          description: Blog modification not found
+          content: {}
+        405:
+          description: Validation exception
+          content: {}
+      security:
+      - blog_auth:
+        - moderator
+    delete:
+      tags:
+      - limbo
+      summary: Remove edited blog
+      operationId: deleteEditedBlog
+      parameters:
+      - name: blogId
+        in: path
+        description: Blog id to delete
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        200:
+          description: Successful operation
+        400:
+          description: Invalid ID supplied
+          content: {}
+        404:
+          description: Blog not found
+          content: {}
+      security:
+      - blog_auth:
+        - moderator
+  
+components:
+  schemas:
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+      xml:
+        name: Category
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        phone:
+          type: string
+        userStatus:
+          type: integer
+          description: User Status
+          format: int32
+        userRole:
+          type: string
+          description: role of user
+          enum:
+          - regular
+          - moderator
+      xml:
+        name: User
+    Tag:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+      xml:
+        name: Tag
+    Blog:
+      required:
+      - title
+      - contents
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        category:
+          $ref: '#/components/schemas/Category'
+        title:
+          type: string
+          example: doggie
+        contents:
+          type: string
+          example: lorem ipsum odor emet
+          minimum: 1
+          maximum: 2000
+        tags:
+          type: array
+          xml:
+            name: tag
+            wrapped: true
+          items:
+            $ref: '#/components/schemas/Tag'
+      xml:
+        name: Blog
+    EditedBlog:
+      required:
+      - title
+      - contents
+      - originalBlogId
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        category:
+          $ref: '#/components/schemas/Category'
+        title:
+          type: string
+          example: doggie
+        contents:
+          type: string
+          example: lorem ipsum odor emet
+          minimum: 1
+          maximum: 2000
+        originalBlogId:
+          $ref: '#/components/schemas/Blog'
+        tags:
+          type: array
+          xml:
+            name: tag
+            wrapped: true
+          items:
+            $ref: '#/components/schemas/Tag'
+      xml:
+        name: EditedBlog
+  securitySchemes:
+    blog_auth:
+      type: oauth2
+      flows:
+        implicit:
+          authorizationUrl: http://petstore.swagger.io/oauth/dialog
+          scopes:
+            registered: add and modify blog
+            moderator: approve blog modification
+            admin: delete blog
