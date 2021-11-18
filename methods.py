@@ -2,7 +2,7 @@ from flask import jsonify, request, Blueprint
 from flask_bcrypt import Bcrypt
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
-from models import *
+from Database_model import *
 from Schemes import *
 
 Session = sessionmaker()
