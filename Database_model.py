@@ -26,7 +26,6 @@ class Category(Base):
     __tablename__ = 'category'
     id = Column(Integer(), autoincrement=True, primary_key=True, unique=True)
     name = Column(String(50), nullable=False)
-    blogs = relationship("Blog", back_populates="category")
 
 class User(Base):
     __tablename__ = 'user'
@@ -40,16 +39,16 @@ class User(Base):
     userRole = Column(String(10))
 
 tag_blog = Table('tag_blog',
-                 Base.metadata,
-                 Column('tag_id', Integer(), ForeignKey('tag.id')),
-                 Column('blog_id', Integer(), ForeignKey('blog.id'))
-                 )
+                  Base.metadata,
+                  Column('tag_id', Integer(), ForeignKey('tag.id')),
+                  Column('blog_id', Integer(), ForeignKey('blog.id'))
+                  )
 
 class Tag(Base):
     __tablename__ = 'tag'
     id = Column(Integer(), autoincrement=True, primary_key=True, unique=True)
     name = Column(String(50), nullable=False)
-    blogs = relationship("Blog", secondary=tag_blog, back_populates="tags", lazy='dynamic')
+    blogs = relationship("Blog", secondary=tag_blog, lazy='dynamic')
 
 class Blog(Base):
     __tablename__ = 'blog'
@@ -57,15 +56,16 @@ class Blog(Base):
     category_id = Column(Integer(), ForeignKey('category.id'))
     title = Column(String(150), nullable=False)
     contents = Column(String(2000), nullable=False)
-    category = relationship("Category", back_populates="blogs")
-    tags = relationship("Tag", secondary=tag_blog, back_populates="blogs", lazy='dynamic')
-    editedBlog = relationship("EditedBlog", back_populates="originalBlog")
+    category = relationship("Category")
+    #tags = relationship("Tag", secondary=tag_blog, lazy='dynamic')
+    editedBlog = relationship("EditedBlog")
+    tags = Column(String(150))
 
 class EditedBlog(Base):
-    __tablename__ = 'editedblog'
+    __tablename__ = 'edited_blog'
     id = Column(Integer(), autoincrement=True, primary_key=True, unique=True)
     title = Column(String(150))
     contents = Column(String(2000))
     originalBlog_id = Column(Integer(), ForeignKey('blog.id'))
-    originalBlog = relationship("Blog", back_populates="editedBlog", uselist=False)
+    originalBlog = relationship("Blog", uselist=False)
 
