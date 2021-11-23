@@ -1,5 +1,6 @@
 from flask import jsonify, request, Blueprint
 from flask_bcrypt import Bcrypt
+from flask_httpauth import HTTPBasicAuth
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
 from Database_model import *
@@ -9,6 +10,21 @@ Session = sessionmaker()
 Session.configure(bind=engine)
 
 api_blueprint = Blueprint("api_blueprint", __name__)
+auth = HTTPBasicAuth()
+
+@auth.get_user_roles
+def get_user_roles(user):
+    return user.userRole
+
+@auth.verify_password
+def verify_password(username, password):
+    session = Session()
+    found_user = session.query(User).filter_by(username=username).first()
+    if not found_user:
+        return False
+    if Bcrypt().check_password_hash(found_user.password, password):
+        return found_user
+
 
 @api_blueprint.route("/user", methods=["POST"])
 def create_user():
@@ -22,11 +38,18 @@ def create_user():
     if found_user:
         return {"message": "User already exists"}, 400
 
-    found_user = session.query(User).filter_by(username=data['username']).first()
+    found_user = session.query(User).filter_by(
+        username=data['username']).first()
     if found_user:
         return {"message": "Username already taken"}, 400
 
-    data['password'] = Bcrypt().generate_password_hash(data['password']).decode('utf - 8')
+    found_user = session.query(User).filter_by(
+        email=data['email']).first()
+    if found_user:
+        return {"message": "Email already taken"}, 400
+
+    data['password'] = Bcrypt().generate_password_hash(
+        data['password']).decode('utf - 8')
 
     user = User(**data)
     session.add(user)
@@ -36,20 +59,23 @@ def create_user():
 
 
 @api_blueprint.route('/user/login', methods=['GET'])
+@auth.login_required
 def login_user():
-    session = Session()
+    # session = Session()
 
-    data = request.get_json()
-    if not data:
-        return {"message": "No input data"}, 400
+    # data = request.get_json()
+    # if not data:
+    #     return {"message": "No input data"}, 400
 
-    found_user = session.query(User).filter_by(username=data['username']).first()
-    if not found_user:
-        return {"message": "User does not exists"}, 404
+    # found_user = session.query(User).filter_by(
+    #     username=data['username']).first()
+    # if not found_user:
+    #     return {"message": "User does not exists"}, 404
 
-    if not Bcrypt().check_password_hash(found_user.password, data['password']):
-        return {"message": "Wrong password"}, 400
+    # if not Bcrypt().check_password_hash(found_user.password, data['password']):
+    #     return {"message": "Wrong password"}, 400
 
+    found_user = auth.current_user()
     return jsonify(User_Schema().dump(found_user))
 
 
@@ -61,29 +87,36 @@ def logout_user():
     if not data:
         return {"message": "No input data"}, 400
 
-    found_user = session.query(User).filter_by(username=data['username']).first()
+    found_user = session.query(User).filter_by(
+        username=data['username']).first()
     if not found_user:
         return {"message": "User does not exists"}, 404
-
 
     return jsonify(User_Schema().dump(found_user))
 
 
 @api_blueprint.route('/user/<string:uname>', methods=['GET'])
+@auth.login_required
 def get_user_by_username(uname):
     session = Session()
+    logged_user = auth.current_user()
+    if logged_user.username != uname:
+        return { "message": "Access denied" }, 403
 
     found_user = session.query(User).filter_by(username=uname).first()
     if not found_user:
         return {"message": "User not found"}, 404
 
-
     return jsonify(User_Schema().dump(found_user))
 
 
 @api_blueprint.route('/user/<string:uname>', methods=['PUT'])
+@auth.login_required
 def update_user(uname):
     session = Session()
+    logged_user_info = auth.current_user()
+    if logged_user_info.username != uname:
+        return {"message": "Access denied"}, 401
 
     data = request.get_json()
     if not data:
@@ -98,10 +131,13 @@ def update_user(uname):
         if check_user:
             return {"message": "Id already taken"}, 400
 
-    if 'username' in data.keys():
-        check_user = session.query(User).filter_by(username=data['username']).first()
-        if check_user:
-            return {"message": "Username already taken"}, 400
+    # ! Forbidding to change username because I'm to lazy to
+    # ! change them later in all blogs too
+    # if 'username' in data.keys():
+    #     check_user = session.query(User).filter_by(
+    #         username=data['username']).first()
+    #     if check_user:
+    #         return {"message": "Username already taken"}, 400
 
     attributes = User.__dict__.keys()
     for key, value in data.items():
@@ -115,8 +151,12 @@ def update_user(uname):
 
 
 @api_blueprint.route('/user/<string:uname>', methods=['DELETE'])
+@auth.login_required
 def delete_user(uname):
     session = Session()
+    logged_user_info = auth.current_user()
+    if logged_user_info.username != uname:
+        return { "message": "Access denied" }, 401
 
     found_user = session.query(User).filter_by(username=uname).first()
     if not found_user:
@@ -141,7 +181,7 @@ def get_blog_by_id(id):
     return jsonify(Blog_Schema().dump(found_blog))
 
 
-@api_blueprint.route('/blog/findByTags', methods=['GET']) ###
+@api_blueprint.route('/blog/findByTags', methods=['GET'])
 def get_blogs_by_tags():
     session = Session()
 
@@ -169,8 +209,10 @@ def get_blogs_by_tags():
 
 
 @api_blueprint.route("/blog", methods=["POST"])
+@auth.login_required
 def create_blog():
     session = Session()
+    logged_user_info = auth.current_user()
 
     data = request.get_json()
     if not data:
@@ -183,11 +225,12 @@ def create_blog():
     if len(data['contents']) > 2000:
         return {"message": "Too long!"}, 400
 
-    categ = session.query(Category).filter_by(id=data['category_id']).first() ###
+    categ = session.query(Category).filter_by(id=data['category_id']).first()
 
     if not categ:
         return {"message": "Category does not exist"}, 404
 
+    data["author"] = logged_user_info.username
     blog = Blog(**data)
     session.add(blog)
     session.commit()
@@ -199,7 +242,35 @@ def create_blog():
     return jsonify(Blog_Schema().dump(blog))
 
 
+@api_blueprint.route('/blog/<int:id>', methods=['PUT'])
+@auth.login_required
+def change_blog(id):
+    session = Session()
+
+    blog = session.query(Blog).filter_by(id=id).first()
+
+    if not blog:
+        return {"message": "Blog does not exists"}, 404
+
+    logged_user = auth.current_user()
+    if blog.author != logged_user.username:
+        return { "message": "Access denied" }, 403
+
+    data = request.get_json()
+    if not data:
+        return {"message": "No input data"}, 400
+
+    print('=================>', blog.__dict__)
+    if data.get('title'):
+        setattr(blog, 'title', data['title'])
+    if data.get('contents'):
+        setattr(blog, 'contents', data['contents'])
+    session.commit()
+
+    return jsonify(Blog_Schema().dump(session.query(Blog).filter_by(id=id).first()))
+
 @api_blueprint.route('/blog/<int:id>', methods=['DELETE'])
+@auth.login_required
 def delete_blog(id):
     session = Session()
 
@@ -207,7 +278,12 @@ def delete_blog(id):
     if not found_blog:
         return {"message": "Blog does not exists"}, 404
 
+    logged_user = auth.current_user()
+    if found_blog.author != logged_user.username:
+        return { "message": "Access denied" }, 403
+
     output = Blog_Schema().dump(found_blog)
+
 
     session.delete(found_blog)
     session.commit()
@@ -216,6 +292,7 @@ def delete_blog(id):
 
 
 @api_blueprint.route("/limbo", methods=["POST"])
+@auth.login_required
 def create_edited_blog():
     session = Session()
 
@@ -231,11 +308,11 @@ def create_edited_blog():
     if len(data['contents']) > 2000:
         return {"message": "Too long!"}, 400
 
-    original = session.query(Blog).filter_by(id=data['originalBlog_id']).first()
+    original = session.query(Blog).filter_by(
+        id=data['originalBlog_id']).first()
 
     if not original:
         return {"message": "Blog does not exist"}, 404
-
 
     blog = EditedBlog(**data)
     session.add(blog)
@@ -245,6 +322,7 @@ def create_edited_blog():
 
 
 @api_blueprint.route("/limbo", methods=["GET"])
+@auth.login_required(role='moderator')
 def get_edited_blogs():
     session = Session()
 
@@ -259,6 +337,7 @@ def get_edited_blogs():
 
 
 @api_blueprint.route("/limbo/<int:id>", methods=["PUT"])
+@auth.login_required(role='moderator')
 def approve_edited_blog(id):
     session = Session()
 
@@ -276,10 +355,11 @@ def approve_edited_blog(id):
     setattr(blog, 'contents', limbo.contents)
     session.commit()
 
-    return jsonify(Blog_Schema().dump(session.query(Blog).filter_by(id=limbo.originalBlog_id).first())) ###
+    return jsonify(Blog_Schema().dump(session.query(Blog).filter_by(id=limbo.originalBlog_id).first()))
 
 
 @api_blueprint.route('/limbo/<int:id>', methods=['DELETE'])
+@auth.login_required(role='moderator')
 def delete_edited_blog(id):
     session = Session()
 
@@ -287,8 +367,8 @@ def delete_edited_blog(id):
     if not found_blog:
         return {"message": "Blog does not exists"}, 404
 
-    d = tag_blog.delete().where(tag_blog.blog_id == id)
-    d.execute()
+    # d = tag_blog.delete().where(tag_blog.blog_id == id)
+    # d.execute()
 
     output = EditedBlog_Schema().dump(found_blog)
 
@@ -296,5 +376,3 @@ def delete_edited_blog(id):
     session.commit()
 
     return jsonify(output)
-
-

@@ -1,5 +1,6 @@
 from marshmallow import Schema, fields, ValidationError, pre_load
 
+
 class User_Schema(Schema):
     id = fields.Int()
     username = fields.Str()
@@ -13,6 +14,7 @@ class User_Schema(Schema):
 
 class Blog_Schema(Schema):
     id = fields.Int()
+    author = fields.Str()
     category_id = fields.Int()
     title = fields.Str()
     contents = fields.Str()
@@ -24,7 +26,6 @@ class EditedBlog_Schema(Schema):
     title = fields.Str()
     contents = fields.Str()
     originalBlog_id = fields.Int()
-
 
 
 '''
